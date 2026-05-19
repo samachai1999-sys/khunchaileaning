@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบติดตามแผนการเรียนส่วนบุคคล - รัฐศาสตร์ แผน C</title>
+    
+    <!-- CSS Framework: Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Charting Library: Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Google Fonts for Thai Language -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- 
+    <!-- Chosen Palette: Warm Professional Neutrals (Slate-50 background, White cards, Slate-800 text, Blue-700/Gold-500 accents for Ramkhamhaeng branding) -->
+    <!-- Application Structure Plan: 
+         The SPA is structured as a "Personal Academic Dashboard". 
+         1. Header: Sets the context (User Profile, Goal).
+         2. Overview Section: Uses charts to instantly communicate progress (Transferred vs Remaining credits) and the breakdown of required courses. This addresses the user's need to quickly grasp the big picture.
+         3. Interactive Roadmap Section: A tabbed interface displaying the term-by-term plan. This is the core functional area, breaking down the 2-year plan into digestible, clickable chunks to prevent cognitive overload. It explicitly highlights the "Sat-Sun-Mon" constraint.
+         4. Strategy Section: Textual tips outlining how to execute the plan (e.g., 80/20 rule, Drag & Drop).
+         This structure was chosen to transition the static markdown report into an actionable, task-oriented tool. 
+    -->
+    <!-- Visualization & Content Choices: 
+         - Overall Progress: Doughnut Chart (Chart.js) - Goal: Inform. Shows the massive advantage of transferred credits (42 vs 84). 
+         - Credit Breakdown: Bar Chart (Chart.js) - Goal: Compare. Breaks down the 84 remaining credits into specific academic categories (Core, Major, Electives) so the user understands the curriculum structure.
+         - Term Roadmap: Dynamic Interactive Table (Vanilla JS) - Goal: Organize. Allows the user to filter courses by term. Exam days are color-coded (Sat=Purple, Sun=Red, Mon=Yellow) to visually confirm adherence to the schedule constraints.
+         - Icons: Unicode characters used exclusively.
+         - Libraries used: Chart.js (Canvas based).
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    -->
+
+    <style>
+        body {
+            font-family: 'Prompt', sans-serif;
+            background-color: #f8fafc; /* slate-50 */
+            color: #1e293b; /* slate-800 */
+        }
+        
+        /* Strict Chart Container Styling as required */
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 500px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+            max-height: 350px;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 350px;
+                max-height: 400px;
+            }
+        }
+
+        /* Custom Scrollbar for tables */
+        .table-container::-webkit-scrollbar {
+            height: 8px;
+        }
+        .table-container::-webkit-scrollbar-thumb {
+            background-color: #cbd5e1;
+            border-radius: 4px;
+        }
+
+        /* Tab Transition */
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="antialiased pb-12">
+
+    <!-- Header Section -->
+    <header class="bg-blue-900 text-white shadow-md border-b-4 border-yellow-500">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div>
+                    <h1 class="text-2xl sm:text-3xl font-bold mb-2">&#127891; ระบบติดตามแผนการเรียนส่วนบุคคล</h1>
+                    <p class="text-blue-200 text-sm sm:text-base">รัฐศาสตรบัณฑิต กลุ่มวิชาเอกบริหารรัฐกิจ (แผน C) - มหาวิทยาลัยรามคำแหง</p>
+                </div>
+                <div class="bg-blue-800/50 rounded-lg p-3 sm:p-4 border border-blue-700 max-w-sm">
+                    <p class="text-xs text-blue-300 uppercase tracking-wider mb-1">ข้อมูลผู้เรียน</p>
+                    <p class="font-medium text-sm sm:text-base">&#128104;&#8205;&#128187; วิศวกรโยธา </p>
+                    <p class="text-sm text-yellow-400 mt-1">&#9888;&#65039; เงื่อนไข: สอบเฉพาะ เสาร์-อาทิตย์-จันทร์</p>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 mt-8 space-y-12">
+
+        <!-- Section 1: Dashboard Overview -->
+        <section id="overview" class="scroll-mt-8">
+            <div class="mb-6">
+                <h2 class="text-2xl font-bold text-slate-800 border-l-4 border-blue-600 pl-3">ภาพรวมโครงสร้างหลักสูตร (126 หน่วยกิต)</h2>
+                <p class="mt-2 text-slate-600">
+                    ส่วนนี้แสดงภาพรวมสถานะหน่วยกิตของคุณ ด้วยสิทธิ์เทียบโอนจากปริญญาตรีใบแรก คุณได้รับการยกเว้นไปถึง 1 ใน 3 ของหลักสูตร แผนภูมิด้านล่างจะช่วยให้คุณเห็นเป้าหมายว่าเหลือการเดินทางอีกเท่าใด และต้องมุ่งเน้นไปที่กลุ่มวิชาใดบ้างเพื่ออัปเกรดทักษะด้านเทคโนโลยีและการบริหารโครงการ
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <!-- Donut Chart Card: Progress -->
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                    <h3 class="text-lg font-semibold text-center mb-4 text-slate-700">สถานะหน่วยกิตรวมตลอดหลักสูตร</h3>
+                    <!-- Required Chart Container -->
+                    <div class="chart-container">
+                        <canvas id="progressChart"></canvas>
+                    </div>
+                    <div class="mt-4 text-center text-sm text-slate-500">
+                        <p>ได้รับการเทียบโอนแล้ว 42 หน่วยกิต (ไม่ต้องเรียนใหม่)</p>
+                        <p class="font-medium text-blue-700 mt-1">เป้าหมายที่ต้องเก็บเพิ่ม: 84 หน่วยกิต (28 วิชา)</p>
+                    </div>
+                </div>
+
+                <!-- Bar Chart Card: Remaining Breakdown -->
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                    <h3 class="text-lg font-semibold text-center mb-4 text-slate-700">สัดส่วนรายวิชาที่ต้องเรียน (84 หน่วยกิต)</h3>
+                    <!-- Required Chart Container -->
+                    <div class="chart-container">
+                        <canvas id="breakdownChart"></canvas>
+                    </div>
+                    <div class="mt-4 text-center text-sm text-slate-500">
+                        <p>เน้นหนักที่กลุ่มวิชาเอกบังคับและวิชาเอกเลือก (สาย Tech & Project)</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 2: Interactive Roadmap -->
+        <section id="roadmap" class="scroll-mt-8">
+            <div class="mb-6">
+                <h2 class="text-2xl font-bold text-slate-800 border-l-4 border-blue-600 pl-3">แผนการเรียนรายเทอม (Roadmap)</h2>
+                <p class="mt-2 text-slate-600">
+                    นี่คือแผนการเรียนที่ถูกออกแบบและคัดกรองวันสอบมาเพื่อคุณโดยเฉพาะ ทุกวิชาในตารางนี้จัดสอบเฉพาะวัน <b>เสาร์, อาทิตย์, และจันทร์</b> เท่านั้น คุณสามารถคลิกเลือกดูแผนในแต่ละเทอมเพื่อวางแผนการลงทะเบียนและเตรียมตัวลางาน(เฉพาะวันจันทร์) ล่วงหน้าได้
+                </p>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <!-- Tab Navigation -->
+                <div class="flex flex-wrap border-b border-slate-200 bg-slate-50" id="tab-nav">
+                    <!-- Tabs will be injected here by JS -->
+                </div>
+
+                <!-- Tab Content Area -->
+                <div class="p-6">
+                    <div id="term-header" class="mb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                        <h3 id="term-title" class="text-xl font-bold text-blue-900"></h3>
+                        <span id="term-stats" class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800"></span>
+                    </div>
+                    <p id="term-desc" class="text-slate-600 mb-6 text-sm"></p>
+
+                    <div class="table-container overflow-x-auto">
+                        <table class="min-w-full divide-y divide-slate-200">
+                            <thead class="bg-slate-100">
+                                <tr>
+                                    <th scope="col" class="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">รหัสวิชา</th>
+                                    <th scope="col" class="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">ชื่อวิชา</th>
+                                    <th scope="col" class="px-4 py-3 text-center text-xs font-semibold text-slate-600 uppercase tracking-wider">หน่วยกิต</th>
+                                    <th scope="col" class="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">วันสอบ</th>
+                                    <th scope="col" class="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">คาบ/เวลา</th>
+                                </tr>
+                            </thead>
+                            <tbody id="course-table-body" class="bg-white divide-y divide-slate-200">
+                                <!-- Rows injected by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 3: Strategies & Tips -->
+        <section id="strategy" class="scroll-mt-8">
+            <div class="mb-6">
+                <h2 class="text-2xl font-bold text-slate-800 border-l-4 border-blue-600 pl-3">กลยุทธ์การพิชิตปริญญาสำหรับคนเวลาน้อย</h2>
+                <p class="mt-2 text-slate-600">
+                    นอกจากตารางเรียนที่ดีแล้ว วิธีการบริหารจัดการเวลาก็สำคัญไม่แพ้กัน นี่คือเทคนิคที่แนะนำเพื่อรักษาสมดุลระหว่างครอบครัว งาน และการเรียน
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- Tip 1 -->
+                <div class="bg-blue-50 rounded-xl p-6 border border-blue-100">
+                    <div class="text-3xl mb-3">&#8644;</div>
+                    <h3 class="text-lg font-bold text-blue-900 mb-2">กลยุทธ์ลากและวาง (Drag & Drop)</h3>
+                    <p class="text-sm text-slate-700">
+                        หากเทอมถัดไปตารางสอบของวิชาในแผนถูกมหาวิทยาลัยสลับไปอยู่วันอังคาร-ศุกร์ ให้ <b>ถอดวิชานั้นออก</b> แล้วดึงวิชาจากเทอมอื่นที่มีวันสอบตรงกับ เสาร์/อาทิตย์/จันทร์ มาลงแทนได้ทันที ไม่มีผลต่อความต่อเนื่องครับ
+                    </p>
+                </div>
+                <!-- Tip 2 -->
+                <div class="bg-yellow-50 rounded-xl p-6 border border-yellow-100">
+                    <div class="text-3xl mb-3">&#128218;</div>
+                    <h3 class="text-lg font-bold text-yellow-900 mb-2">กฎ 80/20 ในการอ่าน</h3>
+                    <p class="text-sm text-slate-700">
+                        วิชาแผน C ส่วนใหญ่เป็นหลักการและระเบียบ ไม่ต้องเสียเวลาอ่านตำราหนาเตอะทั้งหมด ให้ใช้เวลาตอนลูกหลับ เน้นอ่าน <b>"ชีทสรุปและเก็งข้อสอบเก่าหน้าราม"</b> ย้อนหลัง 5-10 เทอม จะช่วยเก็บเนื้อหา 80% ได้ในเวลาอันสั้น
+                    </p>
+                </div>
+                <!-- Tip 3 -->
+                <div class="bg-green-50 rounded-xl p-6 border border-green-100">
+                    <div class="text-3xl mb-3">&#128187;</div>
+                    <h3 class="text-lg font-bold text-green-900 mb-2">เข้าถึงคลาสผ่านหน้าจอ</h3>
+                    <p class="text-sm text-slate-700">
+                        ไม่จำเป็นต้องเดินทางเข้ามหาวิทยาลัย สามารถรับฟังคำบรรยายย้อนหลังผ่านระบบ <b>RU Cyber Classroom</b> ในช่วงเวลาเดินทาง หรือเปิดฟังเป็น Podcast ระหว่างคุมงานที่ไซต์ก่อสร้างได้เลย
+                    </p>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <footer class="bg-slate-800 text-slate-300 py-8 mt-16 border-t-4 border-blue-600 text-center text-sm">
+        <p>&#9881;&#65039; สร้างขึ้นเพื่อสนับสนุนการศึกษาต่อของวิศวกรโยธาสู่สายงานราชการ</p>
+        <p class="mt-2 text-slate-500">ข้อมูลอ้างอิงจากระเบียบการสมัคร ม.รามคำแหง (หลักสูตร พ.ศ. 2569)</p>
+    </footer>
+
+    <!-- Application Logic -->
+    <script>
+        // --- DATA STORAGE ---
+        
+        // Data for Charts
+        const creditData = {
+            transferred: 42,
+            remaining: 84,
+            total: 126
+        };
+
+        const breakdownData = {
+            labels: ['วิชาแกน (Core)', 'วิชาเอกบังคับ (Req.)', 'วิชาเอกเลือก (Elective)', 'วิชาเลือกในคณะ'],
+            values: [18, 24, 24, 18],
+            colors: ['#3b82f6', '#1d4ed8', '#f59e0b', '#10b981']
+        };
+
+        // Data for Roadmap
+        const roadmapData = [
+            {
+                id: 'term1',
+                title: 'เทอม 1: เปิดตัวเก็บเกรดสวย',
+                shortTitle: 'เทอม 1',
+                stats: '5 วิชา | 18 หน่วยกิต',
+                desc: 'เน้นวิชาพื้นฐานเนื้อหาเข้าใจง่าย มีวันสอบควบเช้า-บ่ายแค่วันจันทร์ที่ 26 ต.ค. วันเดียว นอกนั้นสอบกระจายตัวสบายๆ',
+                courses: [
+                    { code: 'POL2107', name: 'การเมืองเปรียบเทียบเบื้องต้น', credit: 3, day: 'วันอาทิตย์', time: 'B (14.00-16.30 น.)' },
+                    { code: 'POL2108', name: 'หลักปฏิบัติทางการปกครองและธรรมาภิบาลฯ', credit: 3, day: 'วันจันทร์', time: 'A (09.30-12.00 น.)' },
+                    { code: 'POL1101', name: 'การเมืองการปกครองไทย', credit: 3, day: 'วันเสาร์', time: 'A (09.30-12.00 น.)' },
+                    { code: 'POL2303', name: 'การบริหารทรัพยากรมนุษย์ในภาครัฐ', credit: 3, day: 'วันอาทิตย์', time: 'A (09.30-12.00 น.)' },
+                    { code: 'POL2301', name: 'องค์การและการบริหารในภาครัฐ', credit: 3, day: 'วันจันทร์', time: 'A (09.30-12.00 น.)' },
+                    { code: 'POL3311', name: 'การเมืองและระบบราชการ', credit: 3, day: 'วันจันทร์', time: 'B (14.00-16.30 น.)' }
+                ]
+            },
+            {
+                id: 'term2',
+                title: 'เทอม 2: ลุยสาย Tech และการวางแผน',
+                shortTitle: 'เทอม 2',
+                stats: '6 วิชา | 18 หน่วยกิต',
+                desc: 'เริ่มเก็บวิชาแกนอื่นๆ พร้อมกับนำวิชาสายไอทีและระบบสารสนเทศที่คุณชื่นชอบเข้ามาประยุกต์เรียน',
+                courses: [
+                    { code: 'POL2200', name: 'ความสัมพันธ์ระหว่างประเทศเบื้องต้น', credit: 3, day: 'วันอาทิตย์', time: 'สัปดาห์ที่ 1' },
+                    { code: 'POL3301', name: 'นโยบายสาธารณะ', credit: 3, day: 'วันเสาร์', time: 'สัปดาห์ที่ 1' },
+                    { code: 'POL3302', name: 'การวางแผนในภาครัฐ', credit: 3, day: 'วันเสาร์', time: 'สัปดาห์ที่ 2' },
+                    { code: 'POL4315', name: 'คอมพิวเตอร์เพื่อการบริหารการพัฒนา', credit: 3, day: 'วันอาทิตย์', time: 'สัปดาห์ที่ 2' },
+                    { code: 'POL4320', name: 'ระบบสารสนเทศเพื่อการจัดการฯ', credit: 3, day: 'วันจันทร์', time: 'สัปดาห์ที่ 3' },
+                    { code: 'POL4323', name: 'เทคโนโลยีสารสนเทศเพื่อการบริหารรัฐกิจ', credit: 3, day: 'วันจันทร์', time: 'สัปดาห์ที่ 3' }
+                ]
+            },
+            {
+                id: 'summer1',
+                title: 'Summer 1: เก็บตกวิชาคุมโปรเจกต์',
+                shortTitle: 'Summer 1',
+                stats: '3 วิชา | 9 หน่วยกิต',
+                desc: 'ภาคฤดูร้อนเป็นโอกาสทองในการใช้เก็บวิชาสายคุมงานก่อสร้างและการบริหารเมืองที่วิศวกรถนัด',
+                courses: [
+                    { code: 'POL4348', name: 'การกำหนดและประเมินโครงการ', credit: 3, day: 'วันเสาร์', time: 'ช่วงสอบซัมเมอร์' },
+                    { code: 'POL4349', name: 'การบริหารโครงการภาครัฐ', credit: 3, day: 'วันอาทิตย์', time: 'ช่วงสอบซัมเมอร์' },
+                    { code: 'POL3314', name: 'การบริหารชุมชนเมือง (Smart City)', credit: 3, day: 'วันจันทร์', time: 'ช่วงสอบซัมเมอร์' }
+                ]
+            },
+            {
+                id: 'term3',
+                title: 'เทอม 3: เจาะลึกข้อมูลและการคลัง',
+                shortTitle: 'เทอม 3',
+                stats: '6 วิชา | 18 หน่วยกิต',
+                desc: 'เก็บวิชาเลือกเสรีในคณะที่เน้นเรื่องการจัดการข้อมูลระดับท้องถิ่นและการคลัง',
+                courses: [
+                    { code: 'POL2302', name: 'ระเบียบปฏิบัติราชการ', credit: 3, day: 'วันเสาร์', time: 'ต้นช่วงการสอบ' },
+                    { code: 'POL3300', name: 'การบริหารการคลัง', credit: 3, day: 'วันอาทิตย์', time: 'ต้นช่วงการสอบ' },
+                    { code: 'POL4312', name: 'เทคโนโลยีการบริหาร', credit: 3, day: 'วันจันทร์', time: 'กลางช่วงการสอบ' },
+                    { code: 'POL4350', name: 'การประเมินผลโครงการภาครัฐ', credit: 3, day: 'วันอาทิตย์', time: 'กลางช่วงการสอบ' },
+                    { code: 'POL4389', name: 'สารสนเทศเพื่อการบริหารงานส่วนท้องถิ่น', credit: 3, day: 'วันจันทร์', time: 'ปลายช่วงการสอบ' },
+                    { code: 'POL4188', name: 'การบริหารข้อมูลในทางรัฐศาสตร์', credit: 3, day: 'วันเสาร์', time: 'ปลายช่วงการสอบ' }
+                ]
+            },
+            {
+                id: 'summer2',
+                title: 'Summer 2: พิชิตด่านสุดท้าย',
+                shortTitle: 'Summer 2',
+                stats: '7 วิชา | 21 หน่วยกิต',
+                desc: 'เก็บตกปรัชญาและวิชาวิจัยส่งท้าย เพื่อทำเรื่องขอจบการศึกษาอย่างเป็นทางการ',
+                courses: [
+                    { code: 'POL2300', name: 'การบริหารรัฐกิจเบื้องต้น', credit: 3, day: 'วันเสาร์', time: 'ช่วงสอบสะสม' },
+                    { code: 'POL2106', name: 'ปรัชญาการเมืองเบื้องต้น', credit: 3, day: 'วันอาทิตย์', time: 'ช่วงสอบสะสม' },
+                    { code: 'POL4100', name: 'หลักและวิธีการวิจัยทางรัฐศาสตร์', credit: 3, day: 'วันจันทร์', time: 'ช่วงสอบสะสม' },
+                    { code: 'POL4346', name: 'การกำหนดและวิเคราะห์นโยบายสาธารณะ', credit: 3, day: 'วันเสาร์', time: 'ช่วงสอบสะสม' },
+                    { code: 'POL4358', name: 'นโยบายและบริการสาธารณะสำหรับศตวรรษที่ 21', credit: 3, day: 'วันอาทิตย์', time: 'ช่วงสอบสะสม' },
+                    { code: 'POL4359', name: 'การจัดการความขัดแย้งในภาครัฐ', credit: 3, day: 'วันจันทร์', time: 'ช่วงสอบสะสม' },
+                    { code: 'POL4197', name: 'การประเมินคุณธรรมและความโปร่งใส', credit: 3, day: 'วันเสาร์', time: 'ช่วงสอบสะสม' }
+                ]
+            }
+        ];
+
+        // --- CORE FUNCTIONS ---
+
+        // Helper: Get color badge for days
+        function getDayBadgeClass(dayString) {
+            if (dayString.includes('เสาร์')) return 'bg-purple-100 text-purple-800 border-purple-200';
+            if (dayString.includes('อาทิตย์')) return 'bg-red-100 text-red-800 border-red-200';
+            if (dayString.includes('จันทร์')) return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+            return 'bg-slate-100 text-slate-800 border-slate-200';
+        }
+
+        // Render Tabs
+        function renderTabs() {
+            const navContainer = document.getElementById('tab-nav');
+            
+            roadmapData.forEach((term, index) => {
+                const btn = document.createElement('button');
+                btn.className = `px-6 py-4 text-sm font-medium focus:outline-none transition-colors border-b-2 ${index === 0 ? 'border-blue-600 text-blue-700 bg-white' : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-100'}`;
+                btn.dataset.target = term.id;
+                btn.innerText = term.shortTitle;
+                
+                btn.addEventListener('click', () => {
+                    // Update Active Tab Styling
+                    Array.from(navContainer.children).forEach(child => {
+                        child.classList.remove('border-blue-600', 'text-blue-700', 'bg-white');
+                        child.classList.add('border-transparent', 'text-slate-500', 'hover:bg-slate-100');
+                    });
+                    btn.classList.remove('border-transparent', 'text-slate-500', 'hover:bg-slate-100');
+                    btn.classList.add('border-blue-600', 'text-blue-700', 'bg-white');
+                    
+                    // Render Content
+                    renderTermContent(term);
+                });
+                
+                navContainer.appendChild(btn);
+            });
+            
+            // Initial render
+            if(roadmapData.length > 0) renderTermContent(roadmapData[0]);
+        }
+
+        // Render Term Details
+        function renderTermContent(termData) {
+            document.getElementById('term-title').innerText = termData.title;
+            document.getElementById('term-stats').innerText = termData.stats;
+            document.getElementById('term-desc').innerText = termData.desc;
+            
+            const tbody = document.getElementById('course-table-body');
+            tbody.innerHTML = ''; // clear existing
+            
+            termData.courses.forEach(course => {
+                const badgeClass = getDayBadgeClass(course.day);
+                
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-slate-50 transition-colors';
+                tr.innerHTML = `
+                    <td class="px-4 py-4 whitespace-nowrap text-sm font-semibold text-slate-800">${course.code}</td>
+                    <td class="px-4 py-4 text-sm text-slate-700">${course.name}</td>
+                    <td class="px-4 py-4 whitespace-nowrap text-sm text-center text-slate-500">${course.credit}</td>
+                    <td class="px-4 py-4 whitespace-nowrap text-sm">
+                        <span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded border ${badgeClass}">
+                            ${course.day}
+                        </span>
+                    </td>
+                    <td class="px-4 py-4 whitespace-nowrap text-sm text-slate-500">${course.time}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // Initialize Charts
+        function initCharts() {
+            // Setup global font
+            Chart.defaults.font.family = "'Prompt', sans-serif";
+            Chart.defaults.color = '#64748b'; // slate-500
+
+            // 1. Progress Donut Chart
+            const ctxProgress = document.getElementById('progressChart').getContext('2d');
+            new Chart(ctxProgress, {
+                type: 'doughnut',
+                data: {
+                    labels: ['เทียบโอนแล้ว (เสร็จสิ้น)', 'หน่วยกิตที่ต้องเรียน (คงเหลือ)'],
+                    datasets: [{
+                        data: [creditData.transferred, creditData.remaining],
+                        backgroundColor: ['#10b981', '#cbd5e1'], // Green for done, Gray for remaining
+                        borderWidth: 0,
+                        hoverOffset: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '70%',
+                    plugins: {
+                        legend: { position: 'bottom' },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return ` ${context.label}: ${context.raw} หน่วยกิต`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            // 2. Breakdown Bar Chart
+            const ctxBreakdown = document.getElementById('breakdownChart').getContext('2d');
+            new Chart(ctxBreakdown, {
+                type: 'bar',
+                data: {
+                    labels: breakdownData.labels,
+                    datasets: [{
+                        label: 'จำนวนหน่วยกิต',
+                        data: breakdownData.values,
+                        backgroundColor: breakdownData.colors,
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 30,
+                            ticks: { stepSize: 6 }
+                        },
+                        x: {
+                            ticks: {
+                                // Simple text wrapping for chart labels
+                                callback: function(value) {
+                                    const label = this.getLabelForValue(value);
+                                    if(label.length > 16) {
+                                        return label.substr(0, 16) + '...';
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return ` ${context.raw} หน่วยกิต`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // --- APP INITIALIZATION ---
+        document.addEventListener('DOMContentLoaded', () => {
+            renderTabs();
+            initCharts();
+        });
+
+    </script>
+</body>
+</html>
